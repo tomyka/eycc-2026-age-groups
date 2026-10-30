@@ -150,7 +150,7 @@ footer{color:var(--muted);font-size:13px}
   <header>
     <div class="eyebrow">European Youth Chess Championships 2026</div>
     <h1>Registered players by age group</h1>
-    <p class="sub">Each player sits in the section they registered for on <a href="https://s2.chess-results.com/tnr1508545.aspx?lan=1&amp;tno=1508545" target="_blank" rel="noopener">chess-results.com</a>. Boys play the open sections (U8 to U18) and girls usually play the girls sections (G8 to G18). A girl who entered an open section stays there and is marked "girl". Pick a cell to see that group.</p>
+    <p class="sub">Players are grouped by the section they registered for on <a href="https://s2.chess-results.com/tnr1508545.aspx?lan=1&amp;tno=1508545" target="_blank" rel="noopener">chess-results.com</a>. Boys play the open sections (U8 to U18) and girls play the girls sections (G8 to G18). A girl listed under an open section is shown in the girls group of the same age and marked with the section she was listed as. Pick a cell to see that group.</p>
     <div class="totals" id="totals"></div>
   </header>
 
@@ -177,7 +177,7 @@ footer{color:var(--muted);font-size:13px}
   </div>
 
   <div class="groups" id="groups"></div>
-  <footer>Source: chess-results.com tournament 1508545, starting rank list, downloaded 28 Oct 2026. Ratings are FIDE standard ratings as listed there. Ranks are by rating: "Group" among players in the same section, "Overall" among all registered players. Players with the same rating share a rank; unrated players have no rank. Hover a flag to see the federation.</footer>
+  <footer>Source: chess-results.com tournament 1508545, starting rank list, downloaded 28 Oct 2026. Ratings are FIDE standard ratings as listed there. Ranks are by rating: "Group" among players in the same group, "Overall" among all registered players. Players with the same rating share a rank; unrated players have no rank. Hover a flag to see the federation.</footer>
 </div>
 
 <script>
@@ -188,8 +188,11 @@ const YEAR = 2026;
 const players = P.map(([no,title,name,fid,fed,rtg,sex,typ]) => {
   const m = /^([UG])(\d+)$/.exec(typ);
   const valid = !!m && AGES.includes(+m[2]);
-  const gender = !valid ? 'x' : (m[1] === 'G' ? 'g' : 'b');
-  return {no,title,name,fid,fed,rtg,sex,typ,age:valid?+m[2]:null,gender,girlInOpen:gender==='b' && sex==='w'};
+  // The section gives the age; boys vs girls comes from either cue, because chess-results sometimes
+  // lists a girl (sex "w") under an open U section or a girls-section entry with no sex.
+  const girl = sex === 'w' || (!!m && m[1] === 'G');
+  const gender = !valid ? 'x' : (girl ? 'g' : 'b');
+  return {no,title,name,fid,fed,rtg,sex,typ,age:valid?+m[2]:null,gender,fromOpen:valid && m[1] === 'U' && girl};
 });
 const key = p => p.gender === 'x' ? 'x' : p.gender + p.age;
 const groups = {};
@@ -229,7 +232,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':
 const nB = players.filter(p=>p.gender==='b').length, nG = players.filter(p=>p.gender==='g').length;
 const feds = [...new Set(players.map(p=>p.fed))].sort();
 document.getElementById('totals').innerHTML =
-  `<span><b>${players.length}</b> players</span><span><b>${nB}</b> in open sections</span><span><b>${nG}</b> in girls sections</span><span><b>${feds.length}</b> federations</span>`;
+  `<span><b>${players.length}</b> players</span><span><b>${nB}</b> boys</span><span><b>${nG}</b> girls</span><span><b>${feds.length}</b> federations</span>`;
 const fedSel = document.getElementById('fed');
 fedSel.insertAdjacentHTML('beforeend', [...feds].sort((a,b)=>fedName(a).localeCompare(fedName(b))).map(f=>`<option value="${esc(f)}">${esc(fedName(f))}</option>`).join(''));
 
@@ -270,7 +273,7 @@ function groupHtml(k){
   const all = groups[k] || [], arr = filtered(all), L = label(k);
   const showAll = state.view==='sel' || state.expanded[k] || arr.length <= LIMIT;
   const list = showAll ? arr : arr.slice(0, LIMIT);
-  const girls = all.filter(p=>p.girlInOpen).length;
+  const nFromOpen = all.filter(p=>p.fromOpen).length;
   const counts = arr.length===all.length ? `${all.length} players` : `${arr.length} of ${all.length} players`;
   const a = avg(arr);
   const body = list.length ? `<div class="tbl"><table>
@@ -279,11 +282,11 @@ function groupHtml(k){
       <td class="r"><strong>${p.rankGroup || '<span class="dim">–</span>'}</strong></td>
       <td class="r dim">${p.rankAll || '–'}</td>
       <td class="fed">${flag(p.fed)}</td>
-      <td>${p.title?`<span class="ttl">${esc(p.title)}</span> `:''}${esc(p.name)}${p.girlInOpen?'<span class="chip">girl</span>':''}${k==='x'?`<span class="chip w">listed as ${esc(p.typ)}</span>`:''}</td>
+      <td>${p.title?`<span class="ttl">${esc(p.title)}</span> `:''}${esc(p.name)}${p.fromOpen||k==='x'?`<span class="chip${k==='x'?' w':''}">listed as ${esc(p.typ)}</span>`:''}</td>
       <td class="r">${p.rtg || '<span class="dim">unrated</span>'}</td>
       <td class="r"><a href="https://ratings.fide.com/profile/${esc(p.fid)}" target="_blank" rel="noopener">${esc(p.fid)}</a></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">No players match the current filters.</div>`;
   const more = showAll ? '' : `<button class="more" data-more="${k}">Show all ${arr.length}</button>`;
-  return `<section class="group ${L.cls}" id="g-${k}"><h2>${L.title}<span class="tag">${L.tag}</span><small>${L.note} · ${counts}${a?` · avg rating ${a}`:''}${girls?` · ${girls} girl${girls>1?'s':''} entered here`:''}</small></h2>${body}${more}</section>`;
+  return `<section class="group ${L.cls}" id="g-${k}"><h2>${L.title}<span class="tag">${L.tag}</span><small>${L.note} · ${counts}${a?` · avg rating ${a}`:''}${nFromOpen?` · ${nFromOpen} moved from the open section`:''}</small></h2>${body}${more}</section>`;
 }
 function renderGroups(){
   let keys;
